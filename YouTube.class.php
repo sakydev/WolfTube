@@ -4,77 +4,99 @@
 * 
 */
 
-class Youtube {
-  function __construct() {
+function pex($a) {
+    echo "<pre>";
+    print_r($a);
+    echo "</pre>";
+    exit("PeX");
+  }
 
+class Youtube {
+
+  private $apiKey;
+  private $videosLimit = 20;
+  private $channelsLimit = 20;
+  private $apiBaseUrl = 'https://www.googleapis.com/youtube/v3/search';
+  private $videosBaseUrl = 'https://www.googleapis.com/youtube/v3/videos';
+  private $channelsBaseUrl = 'https://www.googleapis.com/youtube/v3/channels';
+
+  function __construct($youtubeApiKey) {
+    $this->apiKey = $youtubeApiKey;
+    $this->videoSearchBaseUrl = $this->apiBaseUrl . '?type=videos';
+    $this->channelsSearchBaseUrl = $this->apiBaseUrl . '?type=channels';  
   }
 
   /**
   * Searches YouTube videos against given query
   * @param : { string } { $query } { search term to be used }
-  * @param : { integer } { $max_vids } { max videos to fetch }
+  * @param : { integer } { $videosLimit } { max videos to fetch }
   * @param : { string } { $token } { token to fetch next page vids }
   * @param : { string } { $sort } { sorting of vidds }
   * @return : { array } { an array with required details }
   */
 
-  function search($query, $max_vids = false, $token = false, $sort = false) {
-    $q_strt = 'https://www.googleapis.com/youtube/v3/search?type=videos&part=snippet&q=';
-    if (!$token) {
-      $q = $q_strt.$query.'&key='.YOUTUBE_API_KEY;
-    } else {
-      $q = $q_strt.$query.'&key='.YOUTUBE_API_KEY.'&pageToken='.$token;
-    }
-    $q = str_replace(" ", "+", $q);
-    if ($max_vids) {
-      $q .= '&maxResults='.$max_vids;
-    }
-
-    if ($sort) {
-      switch ($sort) {
-        case 'views':
-          $q .= '&order=viewCount';
-          break;
-        case 'likes':
-          $q .= '&order=rating';
-          break;
-        case 'published_desc':
-          $q .= '&order=date';
-          break;
-        default:
-          $q .= '&order=relevance';
-          break;
+  public function search($query, $videosLimit = false, $token = false, $sort = false) {
+    try {
+      $buildQuery = $this->videoSearchBaseUrl . '&part=snippet&q=' . $query . '&key=' . $this->apiKey;
+      if ($token) {
+        $buildQuery .= '&pageToken=' . $token;
       }
-    }
 
-    $raw_data = file_get_contents($q);
-    $readable = json_decode($raw_data,true);
+      if ($videosLimit) {
+        $this->videosLimit = $videosLimit;
+      }
 
-    if ($token)  {
-      return $this->search_process($readable, true);
-    } else {
-      return $this->search_process($readable);
+      $buildQuery .= '&maxResults=' . $this->videosLimit;
+      $buildQuery = $this->cleanupQuery($buildQuery);
+
+      if ($sort) {
+        switch ($sort) {
+          case 'views':
+            $buildQuery .= '&order=viewCount';
+            break;
+          case 'likes':
+            $buildQuery .= '&order=rating';
+            break;
+          case 'published_desc':
+            $buildQuery .= '&order=date';
+            break;
+          default:
+            $buildQuery .= '&order=relevance';
+            break;
+        }
+      }
+
+      $readable = $this->getContents($buildQuery, true);
+      if (!$readable) {
+        throw new Exception('Something went wrong trying to fetch videos data');
+      }
+      return $this->processSearch($readable, $token);
+    } catch (Exception $e) {
+      echo $e;
     }
   }
 
-  function search_channel($query, $max_vids = false, $token = false, $sort = false) {
-    $q_strt = 'https://www.googleapis.com/youtube/v3/search?type=channel&part=snippet&q=';
-    if (!$token) {
-      $q = $q_strt.$query.'&key='.YOUTUBE_API_KEY;
-    } else {
-      $q = $q_strt.$query.'&key='.YOUTUBE_API_KEY.'&pageToken='.$token;
-    }
-    $q = str_replace(" ", "+", $q);
-    if ($max_vids) {
-      $q .= '&maxResults='.$max_vids;
-    }
+  public function searchChannels($query, $videosLimit = false, $token = false, $sort = false) {
+    try {
+      $buildQuery = $this->channelsSearchBaseUrl . '&part=snippet&q=' . $query . '&key=' . $this->apiKey;
+      if ($token) {
+        $buildQuery .= '&pageToken=' . $token;
+      }
 
-    $raw_data = file_get_contents($q);
-    $readable = json_decode($raw_data,true);
-    if ($token)  {
-      return $this->search_process($readable, true);
-    } else {
-      return $this->search_process($readable);
+      if ($videosLimit) {
+        $this->videosLimit = $videosLimit;
+      }
+
+      $buildQuery .= '&maxResults=' . $this->videosLimit;
+      $buildQuery = $this->cleanupQuery($buildQuery);
+
+      $readable = $this->getContents($buildQuery, true);
+      if (!$readable) {
+        throw new Exception('Something went wrong trying to fetch channels data');
+      }
+      return $this->processSearch($readable, $token);
+    } catch (Exception $e) {
+      echo $e;
     }
   }
 
@@ -86,15 +108,24 @@ class Youtube {
   * @return : { array } { cleaned array with only needed details }
   */
 
-  function related($id, $max_vids = 8, $token = false) {
-    if (!empty($id)) {
-      $request = 'https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId='.$id.'&type=video&maxResults='.$max_vids.'&key='.YOUTUBE_API_KEY;
-      if ($token) {
-        $request .= '&pageToken='.$token;
+  public function getRelatedVideos($videoId, $videosLimit = 8, $token = false) {
+    try {
+      if (!empty($videoId)) {
+        $buildQuery = $this->apiBaseUrl . '&type=video&relatedToVideoId=' . $videoId;
+        $buildQuery .= '&maxResults=' . $videosLimit . '&ke=' . $this->apiKey;
+        if ($token) {
+          $buildQuery .= '&pageToken=' . $token;
+        }
+        $readable = $this->getContents($buildQuery, true);
+        if (!$readable) {
+          throw new Exception('Something went wrong trying to fetch related videos data');
+        }
+        return $this->processSearch($readable, false, true);
+      } else {
+        throw new Exception('Invalid video id provided');
       }
-      $raw_data = file_get_contents($request);
-      $readable = json_decode($raw_data,true);
-      return $this->search_process($readable, false, true);
+    } catch (Exception $e) {
+      echo $e;
     }
   }
 
@@ -106,275 +137,142 @@ class Youtube {
   * @return : { array } { array of cleaned data }
   */
 
-  function search_process($data, $more = false, $related = false, $vidlist = false ) {
-    if (is_array($data)) {
-      #pex($data,true);
-      $clean_data = array();
-      $clean_data['website'] = 'YouTube';
-      $clean_data['next_token'] = $data['nextPageToken'];
-      $clean_data['total'] = $data['pageInfo']['totalResults'];
-      $srch_results = $data['items'];
-      #pex($srch_results,true);$vidlist
-      foreach ($srch_results as $key => $value) {
-        $snippet = $value['snippet'];
-        $created = $snippet['publishedAt'];
-        if (!$vidlist) {
-          $thevid = $value['id']['videoId'];
-        } else {
-          $thevid = $value['id'];
-        }
-        $clean_data['vid_meta'][$key]['vidid'] = $thevid;
-          $published = substr($created, 0, strpos($created, "T"));
-          if ($more) {
-            $published = $this->clean_time($published);
-          }
-          $cont_dets = $this->get_content_details($thevid);
-          /*if (!$cont_dets) {
+  private function processSearch($data, $more = false, $related = false) {
+    try {
+      if (is_object($data)) {
+        $cleanData = array();
+        $cleanData['nextToken'] = $data->nextPageToken;
+        $cleanData['total'] = $data->pageInfo->totalResults;
+        $searchResults = $data->items;
+        foreach ($searchResults as $key => $currentVideo) {
+          $snippet = $currentVideo->snippet;
+          $created = $snippet->publishedAt;
+          if (!isset($currentVideo->id->videoId)) {
             continue;
-          }*/
-          $clean_data['vid_meta'][$key]['published'] = $published;
-          $clean_data['vid_meta'][$key]['chan_id'] = $snippet['channelId'];
-          $clean_data['vid_meta'][$key]['chan_title'] = $snippet['channelTitle'];
-          $clean_data['vid_meta'][$key]['description'] = $snippet['description'];
-          $clean_data['vid_meta'][$key]['views'] = number_format($cont_dets['viewCount']);
-          $clean_data['vid_meta'][$key]['duration'] = $cont_dets['duration'];
-        
-          
-        $clean_data['vid_meta'][$key]['title'] = $snippet['title'];
-        $main_thumb = $snippet['thumbnails']['medium']['url'];
-        if (empty($main_thumb)) {
-          $main_thumb = $snippet['thumbnails']['medium']['url'];
-        }
-        $clean_data['vid_meta'][$key]['thumb'] = $main_thumb;
-      }
-      #pex($clean_data,true);
-      return $clean_data;
-    } else {
-      return false;
-    }
-  }
-
-  /**
-  * Return data for playing a YouTube video
-  * @param : { string } { $id } { id of video to play }
-  * @return : { array } { $data } { array with req fields }
-  */
-
-  function play_youtube($id, $dl = false) {
-    if ($dl) {
-      if(!empty($id)) {
-        $content = $this->get_content_details($id, 'all');
-        $items = $content['items'][0]['snippet'];
-        $data = array();
-        $data['chan_id'] = $items['channelId'];
-        $data['vidid'] = $id;
-        $data['title'] = str_replace(array('\n', "'", "’"), ' ', $items['title']);
-        $data['description'] = str_replace(array("'", "’"), ' ', $items['description']);
-        $data['tags'] = 'l';
-        $data['thumb'] = $items['thumbnails']['medium']['url'];
-        $data['username'] = $items['channelTitle'];
-        $data['date_added'] = $items['publishedAt'];
-        #pex($content,true);
-        $data['duration'] = $this->conv_youtube_time($content['items'][0]['contentDetails']['duration']);
-        $data['views'] = $content['items'][0]['statistics']['viewCount'];
-        $data['likes'] = $content['items'][0]['statistics']['likeCount'];
-        $data['comments'] = $content['items'][0]['statistics']['commentCount'];
-        return $data;
-      } else {
-        return false;
-      }
-    } else {
-      if(is_array($dl)) {
-        $data = array();
-        $data['vidid'] = $dl['id'];
-        $data['title'] = str_replace(array('\n', "'", "’"), ' ', $dl['fulltitle']);
-        $data['description'] = str_replace(array("'", "’"), ' ', $dl['description']);
-        $data['tags'] = 'l';
-        $data['thumb'] = $dl['thumbnail'];
-        $data['username'] = $dl['uploader'];
-        $data['date_added'] = $dl['upload_date'];
-        #pex($content,true);
-        $data['duration'] = $dl['duration'];
-        $data['views'] = $dl['view_count'];
-        $data['likes'] = $dl['like_count'];
-        #$data['comments'] = $content['items'][0]['statistics']['commentCount'];
-        #pex($data,true);
-        return $data;
-      } else {
-        return false;
-      }
-    }
-  }
-
-  function get_content_details($id, $type = false) {
-    if (!empty($id)) {
-      if ($type == 'all') {
-        $call = 'https://www.googleapis.com/youtube/v3/videos?id='.$id.'&key='.YOUTUBE_API_KEY.'&part=snippet,contentDetails,statistics';
-      } else {
-        $call = 'https://www.googleapis.com/youtube/v3/videos?id='.$id.'&key='.YOUTUBE_API_KEY.'&part=contentDetails,statistics';
-      }
-      #$call = 'http://localhost/pull_it_off/styles/videos';
-      $youtube_content = file_get_contents($call);
-      $readable = json_decode($youtube_content,true);
-      #pex($readable,true);
-      $contentDetails = $readable['items'][0]['contentDetails'];
-      $stats = $readable['items'][0]['statistics'];
-      if (empty($contentDetails) || empty($stats)) {
-        $youtube_content = file_get_contents($call);
-        $readable = json_decode($youtube_content,true);
-        $contentDetails = $readable['items'][0]['contentDetails'];
-        $stats = $readable['items'][0]['statistics'];
-      }
-      $details = array_merge($contentDetails, $stats);
-      if (is_array($details)) {
-        if (!$type) {
-          $details['duration'] = $this->conv_youtube_time($details['duration']);
-          return $details;
-        } else {
-          switch ($type) {
-            case 'all':
-              if (is_array($readable)) {
-                return $readable;
-              }
-              break;
-            case 'duration':
-              $duration = $details['duration'];
-              if (!empty($duration)) {
-                $time = $this->conv_youtube_time($duration);
-                if (is_numeric($time)) {
-                  return $time;
-                } else {
-                  return false;
-                }
-              } else {
-                return false;
-              }
-              break;
-            case 'definition':
-              $quality = $details['definition'];
-              if (!empty($quality)) {
-                return $quality;
-              } else {
-                return false;
-              }
-              break;
-            case 'views':
-              $views = $details['viewCount'];
-              if (is_numeric($views)) {
-                return $views;
-              } else {
-                return false;
-              }
-              break;
-            case 'likes':
-              $likes = $details['likeCount'];
-              if (is_numeric($likes)) {
-                return $likes;
-              } else {
-                return false;
-              }
-              break;
-            case 'dlikes':
-              $dlikes = $details['dislikeCount'];
-              if (is_numeric($dlikes)) {
-                return $dlikes;
-              } else {
-                return false;
-              }
-              break;
-            case 'favs':
-              $favs = $details['favoriteCount'];
-              if (is_numeric($favs)) {
-                return $favs;
-              } else {
-                return false;
-              }
-              break;
-            case 'comments':
-              $comments = $details['commentCount'];
-              if (is_numeric($comments)) {
-                return $comments;
-              } else {
-                return false;
-              }
-              break;
-            default:
-              # code...
-              break;
           }
+          $currentVideoId = $currentVideo->id->videoId;
+          $cleanData['videos'][$key]['videoId'] = $currentVideoId;
+          $published = substr($created, 0, strpos($created, "T"));
+          $contentDetails = $this->getContentDetails($currentVideoId);
+
+          $cleanData['videos'][$key]['title'] = $snippet->title;
+          $cleanData['videos'][$key]['published'] = $published;
+          $cleanData['videos'][$key]['description'] = $snippet->description;
+
+          $cleanData['videos'][$key]['views'] = number_format($contentDetails->items[0]->statistics->viewCount);
+          $cleanData['videos'][$key]['duration'] = $this->convertYouTubeTime($contentDetails->items[0]->contentDetails->duration);
+          $cleanData['videos'][$key]['thumbnails'] = (array) $snippet->thumbnails;
+
+          $cleanData['videos'][$key]['channelId'] = $snippet->channelId;
+          $cleanData['videos'][$key]['channelTitle'] = $snippet->channelTitle;
+        }
+
+        pex($cleanData);
+        return $cleanData;
+      } else {
+        throw new Exception('Invalid data provided');
+      }
+    } catch (Exception $e) {
+      echo $e;
+    }
+  }
+
+  public function getContentDetails($videoId, $type = false) {
+    try {
+      if (!empty($videoId)) {
+        $buildQuery = $this->videosBaseUrl . '?id=' . $videoId . '&key=' . $this->apiKey;
+        $buildQuery .= '&part=contentDetails,statistics';
+        if ($type = 'all') {
+          $buildQuery .= ',snippet';
+        }
+
+        $readable = $this->getContents($buildQuery, true);
+        $contentDetails = (array) $readable->items[0]->contentDetails;
+        $stats = (array) $readable->items[0]->statistics;
+        $details = array_merge($contentDetails, $stats);
+
+        if (is_array($details)) {
+          if (!$type) {
+            $details['duration'] = $this->convertYouTubeTime($details['duration']);
+            return $details;
+          } else {
+            switch ($type) {
+              case 'all':
+                if (is_object($readable)) {
+                  return $readable;
+                }
+                break;
+              case 'duration':
+                $duration = $details['duration'];
+                if (!empty($duration)) {
+                  $time = $this->convertYouTubeTime($duration);
+                  if (is_numeric($time)) {
+                    return $time;
+                  }
+                }
+                break;
+              case 'definition':
+                $quality = $details['definition'];
+                if (!empty($quality)) {
+                  return $quality;
+                }
+                break;
+              case 'views':
+                $views = $details['viewCount'];
+                if (is_numeric($views)) {
+                  return $views;
+                }
+                break;
+              case 'likes':
+                $likes = $details['likeCount'];
+                if (is_numeric($likes)) {
+                  return $likes;
+                }
+                break;
+              case 'dlikes':
+                $dlikes = $details['dislikeCount'];
+                if (is_numeric($dlikes)) {
+                  return $dlikes;
+                }
+                break;
+              case 'favs':
+                $favs = $details['favoriteCount'];
+                if (is_numeric($favs)) {
+                  return $favs;
+                }
+                break;
+              case 'comments':
+                $comments = $details['commentCount'];
+                if (is_numeric($comments)) {
+                  return $comments;
+                }
+                break;
+              default:
+                # code...
+                break;
+            }
+          }
+        } else {
+          throw new Exception('Given data is invalid array');
         }
       } else {
-        return false;
+        throw new Exception('Invalid video id');
       }
-    } else {
-      return false;
+    } catch (Exception $e) {
+      echo $e;
     }
   }
 
-  function get_duration($id) {
-    if (!empty($id)) {
-      $data = $this->get_content_details($id, 'duration');
-      return $data;
-    } else {
-      return false;
-    }
+  public function getDuration($id) {
+    return $this->getContentDetails($id, 'duration');
   }
 
-  function get_views($id) {
-    if (!empty($id)) {
-      $data = $this->get_content_details($id, 'views');
-      return $data;
-    } else {
-      return false;
-    }
+  public function getViews($id) {
+    return $this->getContentDetails($id, 'views');
   }
 
-  function get_likes($id) {
-    if (!empty($id)) {
-      $data = $this->get_content_details($id, 'likes');
-      return $data;
-    } else {
-      return false;
-    }
-  }
-
-  /**
-  * Extracts all kinds of info about provided YouTube video
-  * @param : { string } { $youtube_url } { Link to video }
-  * @param : { boolean } { $quality } { false by default. if set to true, returns only video quality }
-  * @param : { boolean } { $thumb } { false by default. if set to true, returns thumbs only }
-  */
-
-  function youtube_detailer($youtube_url, $raw = false) {
-    if ($this->is_youtube($youtube_url)) {
-      $video_id = $this->get_youtube_id($youtube_url);
-      $YOUTUBE_API_KEY = YOUTUBE_API_KEY;
-      $youtube_content = file_get_contents('https://www.googleapis.com/youtube/v3/videos?id='.$video_id.'&key='.$YOUTUBE_API_KEY.'&part=snippet,contentDetails');
-      $content = json_decode($youtube_content);
-      if ( $raw ) {
-        $content = json_decode($youtube_content,true);
-        $this->pr($content);
-      }
-      $data = $content->items[0]->snippet;
-      $time = $content->items[0]->contentDetails->duration;
-      $quality = $content->items[0]->contentDetails->definition;;
-      $caption = $content->items[0]->contentDetails->caption;
-      $total = $this->conv_youtube_time($time);
-      $time_format = $total / 60;       
-      $vid_array['title']     = $data->title;
-      $vid_array['description']   = $data->description;
-      $vid_array['tags']      = $data->title;
-      $vid_array['duration']    = $total;
-      $vid_array['published'] = $data->publishedAt;
-      $vid_array['channel_title'] = $data->channelTitle;
-      $vid_array['channel_id'] = $data->channelId;
-      $vid_array['caption'] = $caption;
-      $vid_array['quality'] = $quality;
-      $vid_array['thumbs'] = $data->thumbnails;
-      return $vid_array;
-    } else {
-      return false;
-    }
+  public function getLikes($id) {
+    return $this->getContentDetails($id, 'likes');
   }
 
   /**
@@ -383,16 +281,19 @@ class Youtube {
   * @return : { integer } { $channel_id } { Id of channel using given name }
   */
 
-  function yt_chan_byName( $channel_name ) {
-    $hit = 'https://www.googleapis.com/youtube/v3/channels';
-    $username = 'forUsername='.$channel_name;
-    $part = 'part=id';
-    $key = 'key='.YOUTUBE_API_KEY;
-    $request = $hit.'?'.$username.'&'.$part.'&'.$key;
-    $raw_data = file_get_contents($request);
-    $readable = json_decode($raw_data);
-    $channel_id = $readable->items[0]->id;
-    return $channel_id; 
+  public function getChannelIdByName( $channelName ) {
+    try {
+      $buildQuery = $this->channelsBaseUrl . '?forUsername=' . $channelName;
+      $buildQuery .= '&part=id&key=' . $this->apiKey;
+
+      $readable = $this->getContents($buildQuery, true);
+      if (!$readable) {
+        throw new Exception('Something went wrong trying to fetch channel id');
+      }
+      return $readable->items[0]->id;
+    } catch (Exception $e) {
+      echo $e;
+    }
   }
 
   /**
@@ -401,89 +302,31 @@ class Youtube {
   * @return : { integer } { $channel_id } { id of youtube channel }
   */
 
-  function yt_chan_byVideo( $url ) {
-    $hit = 'https://www.googleapis.com/youtube/v3/videos';
-    $id = 'id=Xvbfv378SYo';
-    $part = 'part=snippet';
-    $key = 'key='.YOUTUBE_API_KEY;
-    $request = $hit.'?'.$id.'&'.$part.'&'.$key;
-    $raw_data = file_get_contents($request);
-    $readable = json_decode($raw_data);
-    $channel_id = $readable->items[0]->snippet->channelId;
-    return $channel_id;
-  }
+  public function getChannelIdByVideoUrl($url) {
+    try {
+      $buildQuery = $this->videosBaseUrl . '?id=' . $this->getIdByUrl($url);
+      $buildQuery .= '&part=snippet&key=' . $this->apiKey;
 
-  /**
-  * Extract provided youtube video's quality 
-  * @param : { string } { $url } { link to youtube video }
-  */
-
-  function youtube_quality( $url ) {
-    $extract = $this->youtube_detailer( $url );
-    $quality = $extract['quality'];
-    return $quality;
-  }
-
-  /**
-  * Extract all availble thumbs of video
-  * @param: { string } { $url } { link to YouTube video to get thumbs }
-  */
-
-  function youtube_thumbs( $url ) {
-    $extract = $this->youtube_detailer( $url );
-    $thumbs = $extract['thumbs'];
-    return $thumbs;
-  }
-
-  /**
-  * Checks if provided YouTube video is high quality or not
-  * @param : { string } { $url } { link to video }
-  * @param : { boolean } { $msg } { false by default. if set to true, displays operation messages }
-  */
-
-  function is_youtube_hd($url) {
-    if ( $this->is_url($url) ) {
-      if ( $this->is_youtube($url) ) {
-        $quality = $this->youtube_quality($url);
-        if ($quality == 'hd') {
-          return $quality;
-        } elseif ($quality == 'sd') {
-          return $quality;
-        } else {
-          return false;
-          }
+      $readable = $this->getContents($buildQuery, true);
+      if (!$readable) {
+        throw new Exception('Something went wrong trying to fetch channel id by video');
       }
+
+      return isset($readable->items[0]->snippet->channelId) ? $readable->items[0]->snippet->channelId : false;
+    } catch (Exception $e) {
+      echo $e;
     }
   }
-
 
   /** 
   * Extracts YouTube video id from URL
   * @param : { string } { $url } { link to youtube video }
   */
 
-  function get_youtube_id($url) {
-    if ($this->is_youtube($url)) {
-      $url_string = parse_url($url, PHP_URL_QUERY);
-      parse_str($url_string, $args);
-      return isset($args['v']) ? $args['v'] : false;
-    } else {
-      return false;
-    }
-  }
-
-  /**
-  * Checks if provided URL is youtube or not
-  * @param : { string } { $url } { link to youtube video }
-  */
-
-  function is_youtube($url) {
-    if (strpos($url, 'youtube.com')) {
-      $site = true;
-    } else {
-      $site = false;
-    }
-    return $site;
+  public function getIdByUrl($url) {
+    $url_string = parse_url($url, PHP_URL_QUERY);
+    parse_str($url_string, $args);
+    return isset($args['v']) ? $args['v'] : false;
   }
 
   /**
@@ -491,7 +334,7 @@ class Youtube {
   * @param : { string } { $defaultTime } { youtube time stamp }
   */
 
-  function conv_youtube_time($defaultTime) {
+  public function convertYouTubeTime($defaultTime) {
     preg_match_all('!\d+!', $defaultTime, $matches);
     $elems = $matches[0];
     $items = count($elems);
@@ -535,13 +378,6 @@ class Youtube {
         $mins = $elems[2] * 60;
         $total = $days + $hours + $mins + $elems[3];
         break;
-      case 'w':
-        $weeks = $this->weeks_to_sec($elems[0]);
-        $days = $elems[1] * 86400;
-        $hours = $elems[2] * 3600;
-        $mins = $elems[3] * 60;
-        $total = $weeks + $days + $hours + $mins + $elems[4];
-        break;
       
       default:
         return false;
@@ -550,83 +386,33 @@ class Youtube {
     return $total;
   }
 
-  function channel($id) {
-    $idlen = strlen($id);
-    if ($idlen > 4 && $idlen < 10) {
-      $id = $this->yt_chan_byName($id);
-    }
-    $request = 'https://www.googleapis.com/youtube/v3/channels?id='.$id.'&part=snippet,statistics,brandingSettings&key='.YOUTUBE_API_KEY;
-    $raw_data = file_get_contents($request);
-    $readable = json_decode($raw_data,true);
-    #pex($readable,true);
-    $cleaned = $this->process_channel($readable, $id);
-    return $cleaned;
+  private function decode($data) {
+    return json_decode($data);
   }
 
-  function process_channel($readable, $id) {
-    if (is_array($readable)) {
-      $vids_request = 'https://www.googleapis.com/youtube/v3/search?channelId='.$id.'&part=snippet,id&order=date&maxResults=20&key='.YOUTUBE_API_KEY;
-      $raw_vids = json_decode(file_get_contents($vids_request),true);
-      $vids = $this->search_process($raw_vids);
-      $cleaned = array();
-      $cleaned['vids'] = $vids['vid_meta'];
-      $read = $readable['items'][0];
-      $snip = $read['snippet'];
-      $stats = $read['statistics'];
-      $cleaned['title'] = $snip['title'];
-      $cleaned['description'] = $snip['description'];
-      $cleaned['published'] = $snip['publishedAt'];
-      $cleaned['avatar'] = $snip['thumbnails']['medium']['url'];
-      $cleaned['views'] = $stats['viewCount'];
-      $cleaned['subs'] = $stats['subscriberCount'];
-      $cleaned['comments'] = $stats['commentCount'];
-      $cleaned['videos'] = $stats['videoCount'];
-      $cleaned['cover'] = $read['brandingSettings']['image']['bannerMobileExtraHdImageUrl'];
-      return $cleaned;
-    }
-  }
-
-  function cat_vids($catid, $max, $more = false) {
-    $request = 'https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&maxResults='.$max;
-    if (is_numeric($catid)) {
-      $request .= '&videoCategoryId='.$catid;
-    }
-    if ($more) {
-      $request .= "&pageToken=".$more;
-    }
-    $request .= '&key='.YOUTUBE_API_KEY;
-    $raw_data = file_get_contents($request);
-    $readable = json_decode($raw_data,true);
-    $cleaned = $this->search_process($readable,false,false,true);
-    if (!$more) {
-      return $cleaned;
+  private function getContents($url, $decode = false) {
+    try {
+      if (function_exists('curl_version')) {
+      $ch = curl_init();
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_URL,$url);
+      $queryResults = curl_exec($ch);
+      curl_close($ch);  
     } else {
-      echo json_encode($cleaned);
+      $queryResults = file_get_contents($url);
+    }
+    
+    if ($decode) {
+      $queryResults = $this->decode($queryResults);
+    }
+    return $queryResults;
+    } catch (Exception $e) {
+      echo $a;
     }
   }
 
-  function video_exists($video) {
-    if (strlen($video) <= 12) {
-      $ytid = $video;
-    } else {
-      $ytid = $this->get_youtube_id($video);
-    }
-
-    if (!empty($ytid)) {
-      $hit = 'https://www.googleapis.com/youtube/v3/videos';
-      $id = 'id='.$ytid;
-      $part = 'part=snippet';
-      $key = 'key='.YOUTUBE_API_KEY;
-      $request = $hit.'?'.$id.'&'.$part.'&'.$key;
-      $raw_data = file_get_contents($request);
-      $readable = json_decode($raw_data,true);
-      $snippet = $readable['items'][0]['snippet'];
-      if (is_array($snippet)) {
-        return $ytid;
-      } else {
-        return false;
-      }
-    }
+  private function cleanupQuery($query) {
+    return str_replace(' ', '+', $query);
   }
-
 }
