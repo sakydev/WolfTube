@@ -71,7 +71,51 @@ class Youtube {
     }
   }
 
-  public function searchChannels($query, $videosLimit = false, $token = false, $sort = false) {
+  /**
+  * Extracts all kinds of info about provided YouTube video
+  * @param : { string } { $video } { Link to video }
+  */
+
+  public function getVideo($video) {
+    if (strlen($video) < 15) {
+      $videoId = $video;
+    } else {
+      $videoId = $this->getIdByUrl($video);
+    }
+
+    $buildQuery = 'https://www.googleapis.com/youtube/v3/videos?id=' . $videoId . '&key=' . $this->apiKey . '&part=snippet,contentDetails,statistics';
+
+    $videoDetails = $this->getContents($buildQuery, true);
+    $snippet = $videoDetails->items[0]->snippet;
+    $contentDetails = $videoDetails->items[0]->contentDetails;
+    $statistics = $videoDetails->items[0]->statistics;
+
+    $duration = $contentDetails->duration;
+    $quality = $contentDetails->definition;
+    $caption = $contentDetails->caption;
+
+    $total = $this->convertYouTubeTime($duration);
+
+    $responseData = array();
+    $responseData['title'] = $snippet->title;
+    $responseData['description'] = $snippet->description;
+    $responseData['tags'] = $snippet->title;
+    $responseData['duration'] = $total;
+    $responseData['published'] = $snippet->publishedAt;
+    $responseData['channelTitle'] = $snippet->channelTitle;
+    $responseData['channelId'] = $snippet->channelId;
+    $responseData['caption'] = $caption;
+    $responseData['quality'] = $quality;
+    $responseData['thumbs'] = $snippet->thumbnails;
+    $responseData['views'] = $statistics->viewCount;
+    $responseData['likes'] = $statistics->likeCount;
+    $responseData['dislikes'] = $statistics->dislikeCount;
+    $responseData['favorites'] = $statistics->favoriteCount;
+    $responseData['comments'] = $statistics->commentCount;
+    return $responseData;
+  }
+
+  public function searchChannels($query, $videosLimit = false, $token = false) {
     try {
       $buildQuery = $this->channelsSearchBaseUrl . '&part=snippet&q=' . $query . '&key=' . $this->apiKey;
       if ($token) {
@@ -162,7 +206,6 @@ class Youtube {
           $cleanData['videos'][$key]['channelTitle'] = $snippet->channelTitle;
         }
 
-        pex($cleanData);
         return $cleanData;
       } else {
         throw new Exception('Invalid data provided');
@@ -177,7 +220,8 @@ class Youtube {
       if (!empty($videoId)) {
         $buildQuery = $this->videosBaseUrl . '?id=' . $videoId . '&key=' . $this->apiKey;
         $buildQuery .= '&part=contentDetails,statistics';
-        if ($type = 'all') {
+
+        if ($type == 'all') {
           $buildQuery .= ',snippet';
         }
 
@@ -258,6 +302,10 @@ class Youtube {
     }
   }
 
+  public function getDefinition($id) {
+    return $this->getContentDetails($id, 'definition');
+  }
+
   public function getDuration($id) {
     return $this->getContentDetails($id, 'duration');
   }
@@ -268,6 +316,14 @@ class Youtube {
 
   public function getLikes($id) {
     return $this->getContentDetails($id, 'likes');
+  }
+
+  public function getDisLikes($id) {
+    return $this->getContentDetails($id, 'dlikes');
+  }
+
+  public function getCommentsCount($id) {
+    return $this->getContentDetails($id, 'comments');
   }
 
   /**
