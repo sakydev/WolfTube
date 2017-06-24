@@ -1,15 +1,10 @@
 <?php
 
 /**
-* 
+* Class for interacting with YouTube API v3
+* @since: 23rd Feburary, 2017
+* @author: Saqib Razzaq (https://github.com/saqirzzq)
 */
-
-function pex($a) {
-    echo "<pre>";
-    print_r($a);
-    echo "</pre>";
-    exit("PeX");
-  }
 
 class Youtube {
 
@@ -177,7 +172,7 @@ class Youtube {
     }
   }
 
-  public function getContentDetails($videoId, $type = false) {
+  private function getContentDetails($videoId, $type = false) {
     try {
       if (!empty($videoId)) {
         $buildQuery = $this->videosBaseUrl . '?id=' . $videoId . '&key=' . $this->apiKey;
@@ -334,7 +329,7 @@ class Youtube {
   * @param : { string } { $defaultTime } { youtube time stamp }
   */
 
-  public function convertYouTubeTime($defaultTime) {
+  private function convertYouTubeTime($defaultTime) {
     preg_match_all('!\d+!', $defaultTime, $matches);
     $elems = $matches[0];
     $items = count($elems);
