@@ -31,6 +31,12 @@ $parameters['token'] = 'your_page_token_if_you_are_accessing_second_or_higher_pa
 
 $results = $youtube->searchChannels($paramters);
 ```
+#### getVideo
+Get all details regarding single video
+```
+$youtube = new YouTube('your_youtube_api_key');
+$results = $youtube->getVideo('video_url_or_id');
+```
 #### getRelatedVideos
 Get related videos for given video
 ```
@@ -54,6 +60,25 @@ Get views count of a video
 ```
 $youtube = new YouTube('your_youtube_api_key');
 $views = $youtube->getViews('video_id');
+```
+#### getDefinition
+Get video quality
+```
+$youtube = new YouTube('your_youtube_api_key');
+$definition = $youtube->getDefinition('video_id');
+```
+
+#### getCommentsCount
+Get comments count of a video
+```
+$youtube = new YouTube('your_youtube_api_key');
+$totalComments = $youtube->getCommentsCount('video_id');
+```
+#### getDisLikes
+Get video dislikes count
+```
+$youtube = new YouTube('your_youtube_api_key');
+$dislikes = $youtube->getDisLikes('video_id');
 ```
 #### getLikes
 Get likes count of a video
